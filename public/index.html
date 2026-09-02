@@ -1,0 +1,567 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>하루의 궤적</title>
+<style>
+  :root{
+    --paper:#faf6ee;
+    --paper-line:#e4dbc8;
+    --ink:#2b2620;
+    --ink-soft:#726a5c;
+    --plan:#3d5a80;
+    --do:#9b6b3c;
+    --see:#5c7a4a;
+    --danger:#a8493a;
+    --card:#ffffff;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--paper);
+    background-image: repeating-linear-gradient(var(--paper) 0px, var(--paper) 31px, var(--paper-line) 32px);
+    color:var(--ink);
+    font-family: 'Georgia', 'Nanum Myeongjo', serif;
+    min-height:100vh;
+  }
+  header{
+    padding:32px 20px 16px;
+    max-width:880px;
+    margin:0 auto;
+    border-bottom: 1px solid var(--paper-line);
+  }
+  header h1{
+    font-size:28px;
+    margin:0 0 4px;
+    letter-spacing:0.5px;
+  }
+  header p{
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    color:var(--ink-soft);
+    font-size:13px;
+    margin:0;
+  }
+  .notice{
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background:#fff8e0;
+    border:1px solid #e8d68a;
+    color:#5c4a12;
+    font-size:12.5px;
+    padding:8px 12px;
+    border-radius:4px;
+    margin-top:10px;
+    display:inline-block;
+  }
+  nav{
+    max-width:880px;
+    margin:0 auto;
+    display:flex;
+    gap:2px;
+    padding:0 20px;
+  }
+  nav button{
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    border:none;
+    background:none;
+    padding:12px 16px;
+    font-size:14px;
+    cursor:pointer;
+    color:var(--ink-soft);
+    border-bottom:2px solid transparent;
+  }
+  nav button.active{
+    color:var(--ink);
+    border-bottom-color:var(--ink);
+    font-weight:600;
+  }
+  main{
+    max-width:880px;
+    margin:0 auto;
+    padding:24px 20px 80px;
+  }
+  section{display:none;}
+  section.active{display:block;}
+  .card{
+    background:var(--card);
+    border:1px solid var(--paper-line);
+    border-radius:6px;
+    padding:16px;
+    margin-bottom:12px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+  }
+  .row{display:flex; gap:8px; flex-wrap:wrap;}
+  input, select, textarea{
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    border:1px solid var(--paper-line);
+    border-radius:4px;
+    padding:7px 9px;
+    font-size:13.5px;
+    background:#fffefb;
+    color:var(--ink);
+  }
+  textarea{width:100%; resize:vertical; min-height:48px;}
+  label{
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-size:11.5px;
+    color:var(--ink-soft);
+    display:block;
+    margin-bottom:3px;
+  }
+  .field{margin-bottom:10px;}
+  button.action{
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    border:none;
+    border-radius:4px;
+    padding:8px 14px;
+    font-size:13px;
+    cursor:pointer;
+    color:#fff;
+    background:var(--ink);
+  }
+  button.action.plan{background:var(--plan);}
+  button.action.do{background:var(--do);}
+  button.action.see{background:var(--see);}
+  button.ghost{
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    border:1px solid var(--paper-line);
+    background:none;
+    border-radius:4px;
+    padding:6px 10px;
+    font-size:12px;
+    cursor:pointer;
+    color:var(--ink-soft);
+  }
+  button.ghost.danger{color:var(--danger); border-color:#e2b5ac;}
+  .plan-title{font-size:16px; font-weight:600; margin:0 0 4px;}
+  .meta{
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-size:12px; color:var(--ink-soft);
+  }
+  .tag-pill{
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    display:inline-block; background:#f0ece0; border-radius:10px; padding:1px 8px; font-size:11px; margin-right:4px; color:var(--ink-soft);
+  }
+  .task-row{
+    display:flex; justify-content:space-between; align-items:flex-start;
+    padding:10px 0; border-top:1px solid var(--paper-line);
+    gap:10px;
+  }
+  .task-row:first-child{border-top:none;}
+  .task-row.done .task-title{ text-decoration:line-through; color:var(--ink-soft); }
+  .task-title{font-size:14.5px; font-weight:600;}
+  .task-actions{display:flex; gap:6px; flex-shrink:0;}
+  .filters{
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px;
+  }
+  .stats-grid{
+    display:grid; grid-template-columns:repeat(auto-fit, minmax(130px,1fr)); gap:10px; margin-bottom:16px;
+  }
+  .stat{
+    background:var(--card); border:1px solid var(--paper-line); border-radius:6px; padding:14px; cursor:pointer;
+    transition:border-color .15s;
+  }
+  .stat:hover{border-color:var(--ink);}
+  .stat .num{font-size:26px; font-weight:700;}
+  .stat .label{
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-size:11.5px; color:var(--ink-soft);
+  }
+  .drilldown-list{margin-top:6px;}
+  .empty{
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    color:var(--ink-soft); font-size:13px; padding:20px 0; text-align:center;
+  }
+  .modal-backdrop{
+    position:fixed; inset:0; background:rgba(0,0,0,0.35); display:none;
+    align-items:center; justify-content:center; z-index:50;
+  }
+  .modal-backdrop.open{display:flex;}
+  .modal{
+    background:var(--card); border-radius:8px; padding:20px; width:340px; max-width:92vw;
+  }
+  .modal h3{margin-top:0; font-size:16px;}
+  .modal-actions{display:flex; justify-content:flex-end; gap:8px; margin-top:14px;}
+  select{min-width:80px;}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>하루의 궤적</h1>
+  <p>계획을 세우고, 실제로 한 일을 남기고, 돌아보며 다음 계획으로 이어갑니다.</p>
+  <div class="notice">아직 로그인 기능이 없습니다. 이 링크를 아는 사람은 누구나 내용을 볼 수 있으니, 남이 봐도 괜찮은 내용만 남겨 주세요.</div>
+</header>
+
+<nav>
+  <button data-tab="plan" class="active">계획</button>
+  <button data-tab="task">할 일</button>
+  <button data-tab="do">실행 기록</button>
+  <button data-tab="see">돌아보기</button>
+</nav>
+
+<main>
+
+  <!-- 카드 1: 계획 -->
+  <section id="tab-plan" class="active">
+    <div class="card">
+      <div class="plan-title" style="margin-bottom:10px;">새 계획 세우기</div>
+      <div class="field"><label>계획 제목</label><input id="p-title" style="width:100%"></div>
+      <div class="row">
+        <div class="field"><label>시작일</label><input id="p-start" type="date"></div>
+        <div class="field"><label>종료일</label><input id="p-end" type="date"></div>
+        <div class="field"><label>우선순위</label>
+          <select id="p-priority"><option value="high">높음</option><option value="medium" selected>보통</option><option value="low">낮음</option></select>
+        </div>
+        <div class="field"><label>예상 시간(분)</label><input id="p-est" type="number" min="0" style="width:90px"></div>
+      </div>
+      <div class="field"><label>성공 기준</label><textarea id="p-success" placeholder="이 계획이 끝났을 때 무엇이 되어 있으면 성공인지"></textarea></div>
+      <button class="action plan" onclick="createPlan()">계획 저장</button>
+    </div>
+    <div id="plan-list"></div>
+  </section>
+
+  <!-- 카드 2: 할 일 -->
+  <section id="tab-task">
+    <div class="card">
+      <div class="plan-title" style="margin-bottom:10px;">새 할 일 만들기</div>
+      <div class="field"><label>어느 계획에 속하나요</label><select id="t-plan" style="width:100%"></select></div>
+      <div class="field"><label>할 일 내용</label><input id="t-title" style="width:100%"></div>
+      <div class="row">
+        <div class="field"><label>마감일</label><input id="t-due" type="date"></div>
+        <div class="field"><label>우선순위</label>
+          <select id="t-priority"><option value="high">높음</option><option value="medium" selected>보통</option><option value="low">낮음</option></select>
+        </div>
+        <div class="field"><label>태그(쉼표로 구분)</label><input id="t-tags" placeholder="예: 운동, 아침"></div>
+        <div class="field"><label>예상 시간(분)</label><input id="t-est" type="number" min="0" style="width:90px"></div>
+      </div>
+      <button class="action do" onclick="createTask()">할 일 저장</button>
+    </div>
+
+    <div class="filters">
+      <input id="f-search" placeholder="검색어" oninput="loadTasks()">
+      <select id="f-status" onchange="loadTasks()">
+        <option value="">전체 상태</option><option value="todo">진행중</option><option value="done">완료</option>
+      </select>
+      <select id="f-priority" onchange="loadTasks()">
+        <option value="">전체 우선순위</option><option value="high">높음</option><option value="medium">보통</option><option value="low">낮음</option>
+      </select>
+      <select id="f-sort" onchange="loadTasks()">
+        <option value="created_at">최근 생성순</option><option value="due_date">마감일순</option><option value="priority">우선순위순</option>
+      </select>
+    </div>
+    <div id="task-list" class="card"></div>
+  </section>
+
+  <!-- 카드 3: 실행 기록 -->
+  <section id="tab-do">
+    <div id="do-list" class="card"></div>
+  </section>
+
+  <!-- 카드 4: 돌아보기 -->
+  <section id="tab-see">
+    <div class="card">
+      <div class="row" style="align-items:flex-end;">
+        <div class="field"><label>시작일</label><input id="r-start" type="date"></div>
+        <div class="field"><label>종료일</label><input id="r-end" type="date"></div>
+        <button class="action see" onclick="loadReview()">돌아보기 불러오기</button>
+      </div>
+    </div>
+    <div id="review-stats" class="stats-grid"></div>
+    <div id="review-drilldown"></div>
+    <div class="card" id="next-plan-card" style="display:none;">
+      <label>돌아보기에서 다음 계획으로 넘길 한 줄</label>
+      <textarea id="next-plan-note" placeholder="이번 기간을 돌아보고, 다음 계획에 반영할 것 한 가지"></textarea>
+      <button class="action see" style="margin-top:8px;" onclick="saveReviewNote()">다음 계획으로 남기기</button>
+      <div id="review-notes" style="margin-top:12px;"></div>
+    </div>
+  </section>
+
+</main>
+
+<!-- 완료 처리 모달 -->
+<div class="modal-backdrop" id="complete-modal">
+  <div class="modal">
+    <h3>실제로 한 일 남기기</h3>
+    <div class="field"><label>시작 시각</label><input id="c-start" type="datetime-local" style="width:100%"></div>
+    <div class="field"><label>끝난 시각</label><input id="c-end" type="datetime-local" style="width:100%"></div>
+    <div class="field"><label>실제로 걸린 시간(분)</label><input id="c-actual" type="number" min="0" style="width:100%"></div>
+    <div class="field"><label>막혔던 이유(없으면 비워두기)</label><input id="c-blocked" style="width:100%"></div>
+    <div class="modal-actions">
+      <button class="ghost" onclick="closeModal()">취소</button>
+      <button class="action do" onclick="submitComplete()">완료로 저장</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = '/api';
+let plans = [];
+let completingTaskId = null;
+
+document.querySelectorAll('nav button').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('nav button').forEach(b=>b.classList.remove('active'));
+    document.querySelectorAll('section').forEach(s=>s.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('tab-'+btn.dataset.tab).classList.add('active');
+    if(btn.dataset.tab==='task') loadTasks();
+    if(btn.dataset.tab==='do') loadDoTab();
+  });
+});
+
+// ---------- 계획 ----------
+async function loadPlans(){
+  const res = await fetch(`${API}/plans`);
+  plans = await res.json();
+  renderPlanList();
+  renderPlanSelect();
+}
+
+function renderPlanList(){
+  const el = document.getElementById('plan-list');
+  if(plans.length===0){ el.innerHTML = '<div class="empty">아직 계획이 없습니다. 위에서 첫 계획을 만들어 보세요.</div>'; return; }
+  el.innerHTML = plans.map(p=>`
+    <div class="card">
+      <div class="plan-title">${esc(p.title)}</div>
+      <div class="meta">${p.period_start} ~ ${p.period_end} · 우선순위 ${prLabel(p.priority)} · 예상 ${p.estimated_minutes}분</div>
+      <div class="meta" style="margin-top:4px;">성공 기준: ${esc(p.success_criteria)}</div>
+      <div class="row" style="margin-top:8px;">
+        <button class="ghost" onclick="editPlan('${p.id}')">고치기</button>
+        <button class="ghost" onclick="showHistory('${p.id}')">수정 이력 보기</button>
+      </div>
+      <div id="hist-${p.id}"></div>
+    </div>
+  `).join('');
+}
+
+function renderPlanSelect(){
+  const sel = document.getElementById('t-plan');
+  sel.innerHTML = plans.map(p=>`<option value="${p.id}">${esc(p.title)}</option>`).join('');
+}
+
+async function createPlan(){
+  const title = document.getElementById('p-title').value.trim();
+  const period_start = document.getElementById('p-start').value;
+  const period_end = document.getElementById('p-end').value;
+  const priority = document.getElementById('p-priority').value;
+  const success_criteria = document.getElementById('p-success').value.trim();
+  const estimated_minutes = Number(document.getElementById('p-est').value || 0);
+  if(!title || !period_start || !period_end || !success_criteria){ alert('제목·기간·성공 기준을 입력해 주세요.'); return; }
+  await fetch(`${API}/plans`, { method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({title, period_start, period_end, priority, success_criteria, estimated_minutes}) });
+  document.getElementById('p-title').value='';
+  document.getElementById('p-success').value='';
+  await loadPlans();
+}
+
+async function editPlan(id){
+  const p = plans.find(x=>x.id===id);
+  const title = prompt('계획 제목', p.title);
+  if(title===null) return;
+  const success_criteria = prompt('성공 기준', p.success_criteria);
+  if(success_criteria===null) return;
+  await fetch(`${API}/plans/${id}`, { method:'PUT', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({title, success_criteria}) });
+  await loadPlans();
+}
+
+async function showHistory(id){
+  const res = await fetch(`${API}/plans/${id}/history`);
+  const hist = await res.json();
+  const el = document.getElementById(`hist-${id}`);
+  if(hist.length===0){ el.innerHTML = '<div class="meta" style="margin-top:6px;">아직 수정 이력이 없습니다.</div>'; return; }
+  el.innerHTML = '<div class="meta" style="margin-top:6px;">수정 전 기록:</div>' + hist.map(h=>`
+    <div class="meta" style="padding:4px 0; border-top:1px dashed var(--paper-line);">
+      ${h.edited_at.slice(0,16).replace('T',' ')} — "${esc(h.snapshot.title)}" / ${esc(h.snapshot.success_criteria)}
+    </div>`).join('');
+}
+
+// ---------- 할 일 ----------
+async function createTask(){
+  const plan_id = document.getElementById('t-plan').value;
+  const title = document.getElementById('t-title').value.trim();
+  const due_date = document.getElementById('t-due').value || null;
+  const priority = document.getElementById('t-priority').value;
+  const tags = document.getElementById('t-tags').value.trim();
+  const estimated_minutes = Number(document.getElementById('t-est').value || 0);
+  if(!plan_id){ alert('먼저 계획을 하나 이상 만들어 주세요.'); return; }
+  if(!title){ alert('할 일 내용을 입력해 주세요.'); return; }
+  await fetch(`${API}/tasks`, { method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({plan_id, title, due_date, priority, tags, estimated_minutes}) });
+  document.getElementById('t-title').value='';
+  document.getElementById('t-tags').value='';
+  await loadTasks();
+}
+
+async function loadTasks(){
+  const search = document.getElementById('f-search').value;
+  const status = document.getElementById('f-status').value;
+  const priority = document.getElementById('f-priority').value;
+  const sort = document.getElementById('f-sort').value;
+  const qs = new URLSearchParams({search, status, priority, sort});
+  const res = await fetch(`${API}/tasks?${qs}`);
+  const tasks = await res.json();
+  const el = document.getElementById('task-list');
+  if(tasks.length===0){ el.innerHTML = '<div class="empty">조건에 맞는 할 일이 없습니다.</div>'; return; }
+  el.innerHTML = tasks.map(t=>taskRow(t)).join('');
+}
+
+function taskRow(t){
+  const planTitle = (plans.find(p=>p.id===t.plan_id)||{}).title || '';
+  const tags = (t.tags||'').split(',').map(s=>s.trim()).filter(Boolean);
+  return `
+    <div class="task-row ${t.status==='done'?'done':''}">
+      <div>
+        <div class="task-title">${esc(t.title)}</div>
+        <div class="meta">${esc(planTitle)} · 마감 ${t.due_date||'-'} · 우선순위 ${prLabel(t.priority)} · 예상 ${t.estimated_minutes}분</div>
+        <div style="margin-top:4px;">${tags.map(tag=>`<span class="tag-pill">${esc(tag)}</span>`).join('')}</div>
+      </div>
+      <div class="task-actions">
+        ${t.status==='done'
+          ? `<button class="ghost" onclick="reopenTask('${t.id}')">되돌리기</button>`
+          : `<button class="ghost" onclick="openComplete('${t.id}')">완료</button>`}
+        <button class="ghost" onclick="editTask('${t.id}')">고치기</button>
+        <button class="ghost danger" onclick="deleteTask('${t.id}')">삭제</button>
+      </div>
+    </div>`;
+}
+
+async function editTask(id){
+  const res = await fetch(`${API}/tasks?search=`);
+  const tasks = await res.json();
+  const t = tasks.find(x=>x.id===id);
+  const title = prompt('할 일 내용', t.title);
+  if(title===null) return;
+  await fetch(`${API}/tasks/${id}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({title}) });
+  await loadTasks();
+}
+
+async function deleteTask(id){
+  if(!confirm('이 할 일을 지울까요? 관련 실행 기록도 함께 지워집니다.')) return;
+  await fetch(`${API}/tasks/${id}`, { method:'DELETE' });
+  await loadTasks();
+}
+
+async function reopenTask(id){
+  await fetch(`${API}/tasks/${id}/reopen`, { method:'POST' });
+  await loadTasks();
+}
+
+// ---------- 실행 기록(완료) ----------
+function openComplete(taskId){
+  completingTaskId = taskId;
+  const nowLocal = new Date().toISOString().slice(0,16);
+  document.getElementById('c-start').value = nowLocal;
+  document.getElementById('c-end').value = nowLocal;
+  document.getElementById('c-actual').value = '';
+  document.getElementById('c-blocked').value = '';
+  document.getElementById('complete-modal').classList.add('open');
+}
+function closeModal(){
+  document.getElementById('complete-modal').classList.remove('open');
+  completingTaskId = null;
+}
+async function submitComplete(){
+  const start_time = document.getElementById('c-start').value;
+  const end_time = document.getElementById('c-end').value;
+  const actual_minutes = Number(document.getElementById('c-actual').value || 0);
+  const blocked_reason = document.getElementById('c-blocked').value.trim();
+  if(!start_time || !end_time){ alert('시작·끝난 시각을 입력해 주세요.'); return; }
+  await fetch(`${API}/tasks/${completingTaskId}/complete`, { method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({start_time, end_time, actual_minutes, blocked_reason}) });
+  closeModal();
+  await loadTasks();
+  await loadDoTab();
+}
+
+async function loadDoTab(){
+  const res = await fetch(`${API}/tasks?status=done&sort=created_at`);
+  const tasks = await res.json();
+  const el = document.getElementById('do-list');
+  if(tasks.length===0){ el.innerHTML = '<div class="empty">아직 완료해서 실행 기록으로 남긴 할 일이 없습니다.</div>'; return; }
+
+  const withLogs = await Promise.all(tasks.map(async t=>{
+    const lres = await fetch(`${API}/tasks/${t.id}/logs`);
+    const logs = await lres.json();
+    return {t, log: logs[0]};
+  }));
+
+  el.innerHTML = withLogs.map(({t,log})=>`
+    <div style="padding:10px 0; border-top:1px solid var(--paper-line);">
+      <div class="task-title">${esc(t.title)}</div>
+      ${log ? `
+        <div class="meta">시작 ${fmt(log.start_time)} → 종료 ${fmt(log.end_time)} · 실제 ${log.actual_minutes}분 (예상 ${t.estimated_minutes}분)</div>
+        ${log.blocked_reason ? `<div class="meta" style="color:var(--danger);">막힌 이유: ${esc(log.blocked_reason)}</div>` : ''}
+      ` : `<div class="meta">기록 없음</div>`}
+    </div>`).join('');
+}
+function fmt(s){ return (s||'').replace('T',' ').slice(0,16); }
+
+// ---------- 돌아보기 ----------
+async function loadReview(){
+  const start = document.getElementById('r-start').value;
+  const end = document.getElementById('r-end').value;
+  if(!start || !end){ alert('시작일과 종료일을 선택해 주세요.'); return; }
+  const res = await fetch(`${API}/review?start=${start}&end=${end}`);
+  const d = await res.json();
+  const stats = [
+    {key:'plans', num:d.plan_count, label:'계획 수'},
+    {key:'completed', num:d.completed_count, label:'완료한 할 일'},
+    {key:'delayed', num:d.delayed_count, label:'지연된 할 일'},
+    {key:'blocked', num:d.blocked_count, label:'막혔던 할 일'},
+    {key:null, num:`${d.estimated_minutes_sum}분`, label:'예상 시간 합'},
+    {key:null, num:`${d.actual_minutes_sum}분`, label:'실제 시간 합'},
+    {key:null, num:`${d.diff_minutes>=0?'+':''}${d.diff_minutes}분`, label:'차이(실제-예상)'},
+  ];
+  document.getElementById('review-stats').innerHTML = stats.map(s=>`
+    <div class="stat" ${s.key?`onclick="drilldown('${s.key}','${start}','${end}')"`:'style="cursor:default;"'}>
+      <div class="num">${s.num}</div>
+      <div class="label">${s.label}</div>
+    </div>`).join('');
+  document.getElementById('review-drilldown').innerHTML = '';
+  document.getElementById('next-plan-card').style.display = 'block';
+  loadReviewNotes();
+}
+
+async function drilldown(type, start, end){
+  const res = await fetch(`${API}/review/drilldown?start=${start}&end=${end}&type=${type}`);
+  const rows = await res.json();
+  const el = document.getElementById('review-drilldown');
+  if(rows.length===0){ el.innerHTML = '<div class="empty">해당하는 기록이 없습니다.</div>'; return; }
+  const isPlan = type==='plans';
+  el.innerHTML = '<div class="card drilldown-list">' + rows.map(r=>
+    isPlan
+      ? `<div style="padding:6px 0; border-top:1px solid var(--paper-line);">${esc(r.title)} <span class="meta">(${r.period_start}~${r.period_end})</span></div>`
+      : `<div style="padding:6px 0; border-top:1px solid var(--paper-line);">${esc(r.title)} <span class="meta">(마감 ${r.due_date||'-'}, 상태 ${r.status==='done'?'완료':'진행중'})</span></div>`
+  ).join('') + '</div>';
+}
+
+async function saveReviewNote(){
+  const start = document.getElementById('r-start').value;
+  const end = document.getElementById('r-end').value;
+  const note = document.getElementById('next-plan-note').value.trim();
+  if(!note){ alert('다음 계획으로 넘길 한 줄을 적어 주세요.'); return; }
+  await fetch(`${API}/reviews`, { method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({period_start: start, period_end: end, next_plan_note: note}) });
+  document.getElementById('next-plan-note').value='';
+  loadReviewNotes();
+}
+
+async function loadReviewNotes(){
+  const res = await fetch(`${API}/reviews`);
+  const notes = await res.json();
+  document.getElementById('review-notes').innerHTML = notes.map(n=>`
+    <div class="meta" style="padding:4px 0; border-top:1px dashed var(--paper-line);">
+      ${n.created_at.slice(0,16).replace('T',' ')} (${n.period_start}~${n.period_end}) — ${esc(n.next_plan_note)}
+    </div>`).join('');
+}
+
+function prLabel(p){ return p==='high'?'높음':p==='low'?'낮음':'보통'; }
+function esc(s){ return String(s??'').replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+
+loadPlans();
+</script>
+</body>
+</html>
