@@ -300,6 +300,10 @@ initSchema()
     app.listen(PORT, () => console.log(`PDS diary server on :${PORT}`));
   })
   .catch((err) => {
-    console.error('DB 스키마 초기화 실패:', err.message);
+    console.error('DB 스키마 초기화 실패:', err && err.message);
+    console.error('상세 정보:', err && err.code, err && err.errno, err && err.stack);
+    if (err && err.errors) {
+      err.errors.forEach((e, i) => console.error(`  하위 에러 ${i}:`, e && e.message, e && e.code));
+    }
     process.exit(1);
   });
