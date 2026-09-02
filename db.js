@@ -40,7 +40,44 @@ function buildPoolConfig() {
 
 const pool = mysql.createPool(buildPoolConfig());
 
+// 기존 테이블에 user_id 컬럼이 없을 때만 추가합니다.
+// MySQL 8.0.29 미만은 "ADD COLUMN IF NOT EXISTS"를 지원하지 않으므로
+// information_schema를 직접 조회해서 존재 여부를 확인한 뒤 추가합니다.
+async function addUserIdColumnIfMissing(tableName) {
+  const [rows] = await pool.query(
+    `SELECT COUNT(*) AS cnt
+     FROM information_schema.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE()
+       AND TABLE_NAME = ?
+       AND COLUMN_NAME = 'user_id'`,
+    [tableName]
+  );
+  if (rows[0].cnt > 0) return; // 이미 있으면 건너뜀
+
+  await pool.query(
+    `ALTER TABLE \`${tableName}\` ADD COLUMN user_id VARCHAR(36) NULL`
+  );
+
+  // FK도 이미 있는지 확인 후 없을 때만 추가 (제약조건 이름 충돌 방지)
+  const fkName = `fk_${tableName}_user`;
+  const [fkRows] = await pool.query(
+    `SELECT COUNT(*) AS cnt
+     FROM information_schema.TABLE_CONSTRAINTS
+     WHERE TABLE_SCHEMA = DATABASE()
+       AND TABLE_NAME = ?
+       AND CONSTRAINT_NAME = ?`,
+    [tableName, fkName]
+  );
+  if (fkRows[0].cnt === 0) {
+    await pool.query(
+      `ALTER TABLE \`${tableName}\`
+       ADD CONSTRAINT \`${fkName}\` FOREIGN KEY (user_id) REFERENCES users(id)`
+    );
+  }
+}
+
 async function initSchema() {
+  // 과제 6 — 기존 테이블 (변경 없음)
   await pool.query(`
     CREATE TABLE IF NOT EXISTS plans (
       id VARCHAR(36) PRIMARY KEY,
@@ -107,6 +144,38 @@ async function initSchema() {
       created_at VARCHAR(30) NOT NULL
     ) ENGINE=InnoDB
   `);
+
+  // 과제 7 — 신규 테이블: 계정
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS users (
+      id VARCHAR(36) PRIMARY KEY,
+      email VARCHAR(255) UNIQUE NOT NULL,
+      password_hash VARCHAR(255) NOT NULL,
+      created_at VARCHAR(30) NOT NULL
+    ) ENGINE=InnoDB
+  `);
+
+  // 과제 7 — 신규 테이블: 리프레시 토큰 화이트리스트
+  // (httpOnly 쿠키로 발급하고, 로그아웃 시 이 테이블에서 삭제해 즉시 무효화)
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS refresh_tokens (
+      id VARCHAR(36) PRIMARY KEY,
+      user_id VARCHAR(36) NOT NULL,
+      token VARCHAR(512) NOT NULL,
+      expires_at VARCHAR(30) NOT NULL,
+      created_at VARCHAR(30) NOT NULL,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+      INDEX idx_refresh_user (user_id)
+    ) ENGINE=InnoDB
+  `);
+
+  // 과제 7 — 기존 테이블에 소유자(user_id) 컬럼 추가 (카드 4 근거)
+  // users 테이블이 먼저 만들어진 뒤에 실행되어야 FK가 걸립니다.
+  await addUserIdColumnIfMissing('plans');
+  await addUserIdColumnIfMissing('tasks');
+  await addUserIdColumnIfMissing('logs');
+  await addUserIdColumnIfMissing('plan_history');
+  await addUserIdColumnIfMissing('reviews');
 }
 
 function uid() {
