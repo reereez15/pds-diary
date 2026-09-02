@@ -6,9 +6,6 @@ const crypto = require('crypto');
 // 없으면 개별 환경변수(DB_HOST 등)로 접속합니다. 둘 다 없으면 로컬 기본값으로 접속을 시도합니다.
 const connectionUrl = process.env.MYSQL_URL || process.env.DATABASE_URL;
 
-// 임시 진단 로그 — 문제 원인 확인 후 지울 예정
-console.log('[진단] MYSQL_URL 존재?', !!process.env.MYSQL_URL, '/ 길이:', (process.env.MYSQL_URL || '').length);
-console.log('[진단] DATABASE_URL 존재?', !!process.env.DATABASE_URL);
 // Aiven은 SSL 접속을 요구하지만 자체 발급(self-signed) 인증서를 쓰기 때문에,
 // Node의 기본 공인 인증서 목록으로는 체인 검증이 실패합니다(self-signed certificate in
 // certificate chain). 통신 자체는 암호화하되 인증서 신원 검증만 생략(rejectUnauthorized: false)

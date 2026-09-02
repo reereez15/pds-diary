@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>하루의 궤적</title>
+<title>플랜두씨 다이어리</title>
 <style>
   :root{
     --paper:#faf6ee;
@@ -189,7 +189,7 @@
 <body>
 
 <header>
-  <h1>하루의 궤적</h1>
+  <h1>플랜두씨 다이어리</h1>
   <p>계획을 세우고, 실제로 한 일을 남기고, 돌아보며 다음 계획으로 이어갑니다.</p>
   <div class="notice">아직 로그인 기능이 없습니다. 이 링크를 아는 사람은 누구나 내용을 볼 수 있으니, 남이 봐도 괜찮은 내용만 남겨 주세요.</div>
 </header>
@@ -330,6 +330,7 @@ function renderPlanList(){
       <div class="row" style="margin-top:8px;">
         <button class="ghost" onclick="editPlan('${p.id}')">고치기</button>
         <button class="ghost" onclick="showHistory('${p.id}')">수정 이력 보기</button>
+        <button class="ghost danger" onclick="deletePlan('${p.id}')">삭제</button>
       </div>
       <div id="hist-${p.id}"></div>
     </div>
@@ -376,6 +377,15 @@ async function showHistory(id){
     <div class="meta" style="padding:4px 0; border-top:1px dashed var(--paper-line);">
       ${h.edited_at.slice(0,16).replace('T',' ')} — "${esc(h.snapshot.title)}" / ${esc(h.snapshot.success_criteria)}
     </div>`).join('');
+}
+
+async function deletePlan(id){
+  const p = plans.find(x=>x.id===id);
+  if(!confirm(`"${p.title}" 계획을 지울까요? 여기 딸린 할 일과 실행 기록도 모두 함께 지워집니다.`)) return;
+  await fetch(`${API}/plans/${id}`, { method:'DELETE' });
+  await loadPlans();
+  await loadTasks();
+  await loadDoTab();
 }
 
 // ---------- 할 일 ----------

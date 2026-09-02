@@ -85,6 +85,22 @@ app.get('/api/plans/:id/history', ah(async (req, res) => {
   res.json(rows.map(r => ({ ...r, snapshot: JSON.parse(r.snapshot) })));
 }));
 
+app.delete('/api/plans/:id', ah(async (req, res) => {
+  const existing = await one('SELECT * FROM plans WHERE id = ?', [req.params.id]);
+  if (!existing) return res.status(404).json({ error: 'not_found' });
+
+  // 계획에 딸린 할 일들의 실행 기록부터 지우고, 할 일, 계획 수정 이력, 마지막으로 계획 자체를 지웁니다.
+  const tasks = await all('SELECT id FROM tasks WHERE plan_id = ?', [existing.id]);
+  for (const t of tasks) {
+    await run('DELETE FROM logs WHERE task_id = ?', [t.id]);
+  }
+  await run('DELETE FROM tasks WHERE plan_id = ?', [existing.id]);
+  await run('DELETE FROM plan_history WHERE plan_id = ?', [existing.id]);
+  await run('DELETE FROM plans WHERE id = ?', [existing.id]);
+
+  res.json({ ok: true, deleted_tasks: tasks.length });
+}));
+
 // ---------- 카드 2: 할 일 (tasks) ----------
 
 app.get('/api/tasks', ah(async (req, res) => {
