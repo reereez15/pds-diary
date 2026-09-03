@@ -191,7 +191,8 @@
 <header>
   <h1>하루의 궤적</h1>
   <p>계획을 세우고, 실제로 한 일을 남기고, 돌아보며 다음 계획으로 이어갑니다.</p>
-  <div class="notice">아직 로그인 기능이 없습니다. 이 링크를 아는 사람은 누구나 내용을 볼 수 있으니, 남이 봐도 괜찮은 내용만 남겨 주세요.</div>
+  <div class="notice" id="who-am-i">확인 중...</div>
+  <button id="logout-btn" class="ghost" style="margin-top:10px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:12.5px;padding:6px 10px;border:1px solid var(--paper-line);background:#fff;border-radius:4px;cursor:pointer;">로그아웃</button>
 </header>
 
 <nav>
@@ -300,6 +301,67 @@ const API = '/api';
 let plans = [];
 let completingTaskId = null;
 
+// ---------- 과제 7: 인증 연동 ----------
+// 액세스 토큰은 새로고침 시 사라지는 sessionStorage에만 잠깐 보관합니다(주소창/로컬스토리지에 남기지 않음).
+// 실제 로그인 유지는 서버가 심어준 httpOnly 리프레시 쿠키 + /api/auth/refresh 로 이루어집니다.
+let accessToken = sessionStorage.getItem('accessToken');
+
+async function refreshAccessToken(){
+  const res = await fetch(`${API}/auth/refresh`, { method:'POST', credentials:'include' });
+  if(!res.ok){ accessToken = null; sessionStorage.removeItem('accessToken'); return null; }
+  const data = await res.json();
+  accessToken = data.accessToken;
+  sessionStorage.setItem('accessToken', accessToken);
+  return accessToken;
+}
+
+// 모든 데이터 요청은 이 함수를 통해서만 보냅니다.
+// - Authorization 헤더에 액세스 토큰을 실어 보내고
+// - 401(만료/미로그인)을 받으면 리프레시를 한 번 시도한 뒤 재요청하고
+// - 그래도 실패하면 로그인 화면으로 보냅니다.
+async function authFetch(url, options = {}){
+  const doFetch = (token) => fetch(url, {
+    ...options,
+    headers: {
+      ...(options.headers || {}),
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+  });
+
+  let res = await doFetch(accessToken);
+  if(res.status === 401){
+    const refreshed = await refreshAccessToken();
+    if(!refreshed){
+      window.location.href = '/login.html';
+      throw new Error('로그인이 필요합니다.');
+    }
+    res = await doFetch(refreshed);
+    if(res.status === 401){
+      window.location.href = '/login.html';
+      throw new Error('로그인이 필요합니다.');
+    }
+  }
+  return res;
+}
+
+async function ensureLoggedInThenStart(){
+  // 페이지를 새로 열면 accessToken이 sessionStorage에 없을 수 있으므로
+  // 우선 리프레시 쿠키로 재발급을 시도해 보고, 그래도 안 되면 로그인 화면으로 보냅니다.
+  if(!accessToken){
+    const refreshed = await refreshAccessToken();
+    if(!refreshed){ window.location.href = '/login.html'; return; }
+  }
+  const meRes = await authFetch(`${API}/auth/me`);
+  const me = await meRes.json();
+  document.getElementById('who-am-i').textContent = `${me.email} 님으로 로그인됨`;
+  document.getElementById('logout-btn').addEventListener('click', async () => {
+    await fetch(`${API}/auth/logout`, { method:'POST', credentials:'include' });
+    sessionStorage.removeItem('accessToken');
+    window.location.href = '/login.html';
+  });
+  loadPlans();
+}
+
 document.querySelectorAll('nav button').forEach(btn=>{
   btn.addEventListener('click', ()=>{
     document.querySelectorAll('nav button').forEach(b=>b.classList.remove('active'));
@@ -313,7 +375,7 @@ document.querySelectorAll('nav button').forEach(btn=>{
 
 // ---------- 계획 ----------
 async function loadPlans(){
-  const res = await fetch(`${API}/plans`);
+  const res = await authFetch(`${API}/plans`);
   plans = await res.json();
   renderPlanList();
   renderPlanSelect();
@@ -350,7 +412,7 @@ async function createPlan(){
   const success_criteria = document.getElementById('p-success').value.trim();
   const estimated_minutes = Number(document.getElementById('p-est').value || 0);
   if(!title || !period_start || !period_end || !success_criteria){ alert('제목·기간·성공 기준을 입력해 주세요.'); return; }
-  await fetch(`${API}/plans`, { method:'POST', headers:{'Content-Type':'application/json'},
+  await authFetch(`${API}/plans`, { method:'POST', headers:{'Content-Type':'application/json'},
     body: JSON.stringify({title, period_start, period_end, priority, success_criteria, estimated_minutes}) });
   document.getElementById('p-title').value='';
   document.getElementById('p-success').value='';
@@ -363,13 +425,13 @@ async function editPlan(id){
   if(title===null) return;
   const success_criteria = prompt('성공 기준', p.success_criteria);
   if(success_criteria===null) return;
-  await fetch(`${API}/plans/${id}`, { method:'PUT', headers:{'Content-Type':'application/json'},
+  await authFetch(`${API}/plans/${id}`, { method:'PUT', headers:{'Content-Type':'application/json'},
     body: JSON.stringify({title, success_criteria}) });
   await loadPlans();
 }
 
 async function showHistory(id){
-  const res = await fetch(`${API}/plans/${id}/history`);
+  const res = await authFetch(`${API}/plans/${id}/history`);
   const hist = await res.json();
   const el = document.getElementById(`hist-${id}`);
   if(hist.length===0){ el.innerHTML = '<div class="meta" style="margin-top:6px;">아직 수정 이력이 없습니다.</div>'; return; }
@@ -382,7 +444,7 @@ async function showHistory(id){
 async function deletePlan(id){
   const p = plans.find(x=>x.id===id);
   if(!confirm(`"${p.title}" 계획을 지울까요? 여기 딸린 할 일과 실행 기록도 모두 함께 지워집니다.`)) return;
-  await fetch(`${API}/plans/${id}`, { method:'DELETE' });
+  await authFetch(`${API}/plans/${id}`, { method:'DELETE' });
   await loadPlans();
   await loadTasks();
   await loadDoTab();
@@ -398,7 +460,7 @@ async function createTask(){
   const estimated_minutes = Number(document.getElementById('t-est').value || 0);
   if(!plan_id){ alert('먼저 계획을 하나 이상 만들어 주세요.'); return; }
   if(!title){ alert('할 일 내용을 입력해 주세요.'); return; }
-  await fetch(`${API}/tasks`, { method:'POST', headers:{'Content-Type':'application/json'},
+  await authFetch(`${API}/tasks`, { method:'POST', headers:{'Content-Type':'application/json'},
     body: JSON.stringify({plan_id, title, due_date, priority, tags, estimated_minutes}) });
   document.getElementById('t-title').value='';
   document.getElementById('t-tags').value='';
@@ -411,7 +473,7 @@ async function loadTasks(){
   const priority = document.getElementById('f-priority').value;
   const sort = document.getElementById('f-sort').value;
   const qs = new URLSearchParams({search, status, priority, sort});
-  const res = await fetch(`${API}/tasks?${qs}`);
+  const res = await authFetch(`${API}/tasks?${qs}`);
   const tasks = await res.json();
   const el = document.getElementById('task-list');
   if(tasks.length===0){ el.innerHTML = '<div class="empty">조건에 맞는 할 일이 없습니다.</div>'; return; }
@@ -439,23 +501,23 @@ function taskRow(t){
 }
 
 async function editTask(id){
-  const res = await fetch(`${API}/tasks?search=`);
+  const res = await authFetch(`${API}/tasks?search=`);
   const tasks = await res.json();
   const t = tasks.find(x=>x.id===id);
   const title = prompt('할 일 내용', t.title);
   if(title===null) return;
-  await fetch(`${API}/tasks/${id}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({title}) });
+  await authFetch(`${API}/tasks/${id}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({title}) });
   await loadTasks();
 }
 
 async function deleteTask(id){
   if(!confirm('이 할 일을 지울까요? 관련 실행 기록도 함께 지워집니다.')) return;
-  await fetch(`${API}/tasks/${id}`, { method:'DELETE' });
+  await authFetch(`${API}/tasks/${id}`, { method:'DELETE' });
   await loadTasks();
 }
 
 async function reopenTask(id){
-  await fetch(`${API}/tasks/${id}/reopen`, { method:'POST' });
+  await authFetch(`${API}/tasks/${id}/reopen`, { method:'POST' });
   await loadTasks();
 }
 
@@ -479,7 +541,7 @@ async function submitComplete(){
   const actual_minutes = Number(document.getElementById('c-actual').value || 0);
   const blocked_reason = document.getElementById('c-blocked').value.trim();
   if(!start_time || !end_time){ alert('시작·끝난 시각을 입력해 주세요.'); return; }
-  await fetch(`${API}/tasks/${completingTaskId}/complete`, { method:'POST', headers:{'Content-Type':'application/json'},
+  await authFetch(`${API}/tasks/${completingTaskId}/complete`, { method:'POST', headers:{'Content-Type':'application/json'},
     body: JSON.stringify({start_time, end_time, actual_minutes, blocked_reason}) });
   closeModal();
   await loadTasks();
@@ -487,13 +549,13 @@ async function submitComplete(){
 }
 
 async function loadDoTab(){
-  const res = await fetch(`${API}/tasks?status=done&sort=created_at`);
+  const res = await authFetch(`${API}/tasks?status=done&sort=created_at`);
   const tasks = await res.json();
   const el = document.getElementById('do-list');
   if(tasks.length===0){ el.innerHTML = '<div class="empty">아직 완료해서 실행 기록으로 남긴 할 일이 없습니다.</div>'; return; }
 
   const withLogs = await Promise.all(tasks.map(async t=>{
-    const lres = await fetch(`${API}/tasks/${t.id}/logs`);
+    const lres = await authFetch(`${API}/tasks/${t.id}/logs`);
     const logs = await lres.json();
     return {t, log: logs[0]};
   }));
@@ -514,7 +576,7 @@ async function loadReview(){
   const start = document.getElementById('r-start').value;
   const end = document.getElementById('r-end').value;
   if(!start || !end){ alert('시작일과 종료일을 선택해 주세요.'); return; }
-  const res = await fetch(`${API}/review?start=${start}&end=${end}`);
+  const res = await authFetch(`${API}/review?start=${start}&end=${end}`);
   const d = await res.json();
   const stats = [
     {key:'plans', num:d.plan_count, label:'계획 수'},
@@ -536,7 +598,7 @@ async function loadReview(){
 }
 
 async function drilldown(type, start, end){
-  const res = await fetch(`${API}/review/drilldown?start=${start}&end=${end}&type=${type}`);
+  const res = await authFetch(`${API}/review/drilldown?start=${start}&end=${end}&type=${type}`);
   const rows = await res.json();
   const el = document.getElementById('review-drilldown');
   if(rows.length===0){ el.innerHTML = '<div class="empty">해당하는 기록이 없습니다.</div>'; return; }
@@ -553,14 +615,14 @@ async function saveReviewNote(){
   const end = document.getElementById('r-end').value;
   const note = document.getElementById('next-plan-note').value.trim();
   if(!note){ alert('다음 계획으로 넘길 한 줄을 적어 주세요.'); return; }
-  await fetch(`${API}/reviews`, { method:'POST', headers:{'Content-Type':'application/json'},
+  await authFetch(`${API}/reviews`, { method:'POST', headers:{'Content-Type':'application/json'},
     body: JSON.stringify({period_start: start, period_end: end, next_plan_note: note}) });
   document.getElementById('next-plan-note').value='';
   loadReviewNotes();
 }
 
 async function loadReviewNotes(){
-  const res = await fetch(`${API}/reviews`);
+  const res = await authFetch(`${API}/reviews`);
   const notes = await res.json();
   document.getElementById('review-notes').innerHTML = notes.map(n=>`
     <div class="meta" style="padding:4px 0; border-top:1px dashed var(--paper-line);">
@@ -571,7 +633,7 @@ async function loadReviewNotes(){
 function prLabel(p){ return p==='high'?'높음':p==='low'?'낮음':'보통'; }
 function esc(s){ return String(s??'').replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
 
-loadPlans();
+ensureLoggedInThenStart();
 </script>
 </body>
 </html>

@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>하루의 궤적 — 로그인</title>
+<style>
+  :root{
+    --paper:#faf6ee;
+    --paper-line:#e4dbc8;
+    --ink:#2b2620;
+    --ink-soft:#726a5c;
+    --plan:#3d5a80;
+    --danger:#a8493a;
+    --card:#ffffff;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--paper);
+    background-image: repeating-linear-gradient(var(--paper) 0px, var(--paper) 31px, var(--paper-line) 32px);
+    color:var(--ink);
+    font-family: 'Georgia', 'Nanum Myeongjo', serif;
+    min-height:100vh;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+  }
+  .box{
+    background:var(--card);
+    border:1px solid var(--paper-line);
+    border-radius:6px;
+    padding:32px;
+    width:100%;
+    max-width:360px;
+    box-shadow:0 2px 10px rgba(0,0,0,0.05);
+  }
+  h1{ font-size:22px; margin:0 0 4px; }
+  p.sub{
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    color:var(--ink-soft); font-size:13px; margin:0 0 20px;
+  }
+  label{
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-size:13px; color:var(--ink-soft); display:block; margin:14px 0 4px;
+  }
+  input{
+    width:100%; padding:10px 12px; border:1px solid var(--paper-line);
+    border-radius:4px; font-size:14px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+  button{
+    width:100%; margin-top:20px; padding:11px; border:none; border-radius:4px;
+    background:var(--plan); color:#fff; font-size:14px; cursor:pointer;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+  button:disabled{ opacity:0.6; cursor:default; }
+  .switch{
+    text-align:center; margin-top:16px; font-size:12.5px; color:var(--ink-soft);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+  .switch a{ color:var(--plan); cursor:pointer; text-decoration:underline; }
+  .error{
+    background:#fdecea; border:1px solid #f3c2bb; color:var(--danger);
+    font-size:12.5px; padding:8px 10px; border-radius:4px; margin-top:14px; display:none;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+</style>
+</head>
+<body>
+  <div class="box">
+    <h1 id="title">로그인</h1>
+    <p class="sub" id="subtitle">내 계획과 기록은 로그인 뒤에만 보입니다.</p>
+
+    <form id="authForm">
+      <label>이메일</label>
+      <input type="email" id="email" required autocomplete="username">
+      <label>비밀번호</label>
+      <input type="password" id="password" required autocomplete="current-password" minlength="8">
+      <button type="submit" id="submitBtn">로그인</button>
+    </form>
+
+    <div class="error" id="errorBox"></div>
+
+    <div class="switch">
+      <span id="switchText">계정이 없으신가요? <a id="switchLink">회원가입</a></span>
+    </div>
+  </div>
+
+<script>
+const API = '/api/auth';
+let mode = 'login'; // or 'register'
+
+const titleEl = document.getElementById('title');
+const subtitleEl = document.getElementById('subtitle');
+const submitBtn = document.getElementById('submitBtn');
+const switchText = document.getElementById('switchText');
+const switchLink = document.getElementById('switchLink');
+const errorBox = document.getElementById('errorBox');
+
+function applyMode(){
+  if (mode === 'login'){
+    titleEl.textContent = '로그인';
+    subtitleEl.textContent = '내 계획과 기록은 로그인 뒤에만 보입니다.';
+    submitBtn.textContent = '로그인';
+    switchText.innerHTML = '계정이 없으신가요? <a id="switchLink">회원가입</a>';
+  } else {
+    titleEl.textContent = '회원가입';
+    subtitleEl.textContent = '비밀번호는 8자 이상으로 만들어 주세요.';
+    submitBtn.textContent = '가입하기';
+    switchText.innerHTML = '이미 계정이 있으신가요? <a id="switchLink">로그인</a>';
+  }
+  document.getElementById('switchLink').onclick = () => {
+    mode = mode === 'login' ? 'register' : 'login';
+    errorBox.style.display = 'none';
+    applyMode();
+  };
+}
+applyMode();
+
+const ERROR_MESSAGES = {
+  missing_fields: '이메일과 비밀번호를 모두 입력해 주세요.',
+  weak_password: '비밀번호는 8자 이상이어야 합니다.',
+  email_taken: '이미 가입된 이메일입니다.',
+  invalid_credentials: '이메일 또는 비밀번호가 올바르지 않습니다.',
+  server_error: '서버 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.',
+};
+
+document.getElementById('authForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  errorBox.style.display = 'none';
+  submitBtn.disabled = true;
+
+  const email = document.getElementById('email').value.trim();
+  const password = document.getElementById('password').value;
+
+  try {
+    if (mode === 'register') {
+      const r = await fetch(`${API}/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      });
+      if (!r.ok) {
+        const body = await r.json().catch(() => ({}));
+        throw new Error(ERROR_MESSAGES[body.error] || '회원가입에 실패했습니다.');
+      }
+      // 가입 성공 -> 곧바로 로그인 모드로 자동 로그인 시도
+    }
+
+    const loginRes = await fetch(`${API}/login`, {
+      method: 'POST',
+      credentials: 'include', // 리프레시 토큰 httpOnly 쿠키를 받기 위해 필요
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    });
+    if (!loginRes.ok) {
+      const body = await loginRes.json().catch(() => ({}));
+      throw new Error(ERROR_MESSAGES[body.error] || '로그인에 실패했습니다.');
+    }
+    const data = await loginRes.json();
+    // 액세스 토큰은 새로고침 시 사라지는 sessionStorage에 보관 (localStorage보다 노출 면적이 작음).
+    // 실제 로그인 유지는 httpOnly 리프레시 쿠키 + /api/auth/refresh 로 이루어짐.
+    sessionStorage.setItem('accessToken', data.accessToken);
+    window.location.href = '/index.html';
+  } catch (err) {
+    errorBox.textContent = err.message;
+    errorBox.style.display = 'block';
+  } finally {
+    submitBtn.disabled = false;
+  }
+});
+</script>
+</body>
+</html>
