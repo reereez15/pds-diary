@@ -31,7 +31,7 @@ function addDays(date, days) {
 }
 
 function signAccessToken(user) {
-  return jwt.sign({ sub: user.id, email: user.email }, ACCESS_SECRET, { expiresIn: ACCESS_TTL });
+  return jwt.sign({ sub: user.id, username: user.username }, ACCESS_SECRET, { expiresIn: ACCESS_TTL });
 }
 
 function signRefreshToken(user) {
@@ -50,32 +50,34 @@ function refreshCookieOptions() {
 
 // ---------- 회원가입 ----------
 router.post('/register', ah(async (req, res) => {
-  const { email, password } = req.body;
-  if (!email || !password) return res.status(400).json({ error: 'missing_fields' });
+  const { username, password } = req.body;
+  if (!username || !password) return res.status(400).json({ error: 'missing_fields' });
+  if (username.length < 3 || username.length > 50) return res.status(400).json({ error: 'invalid_username' });
+  if (!/^[a-zA-Z0-9_.-]+$/.test(username)) return res.status(400).json({ error: 'invalid_username' });
   if (password.length < 8) return res.status(400).json({ error: 'weak_password' });
 
-  const [existingRows] = await pool.query('SELECT id FROM users WHERE email = ?', [email]);
-  if (existingRows[0]) return res.status(409).json({ error: 'email_taken' });
+  const [existingRows] = await pool.query('SELECT id FROM users WHERE username = ?', [username]);
+  if (existingRows[0]) return res.status(409).json({ error: 'username_taken' });
 
   // 카드2: bcrypt로 되돌릴 수 없게 저장 (원문은 저장/로그 어디에도 남기지 않음)
   const passwordHash = await bcrypt.hash(password, 12);
   const id = uid();
   await pool.query(
-    'INSERT INTO users (id, email, password_hash, created_at) VALUES (?,?,?,?)',
-    [id, email, passwordHash, nowIso()]
+    'INSERT INTO users (id, username, password_hash, created_at) VALUES (?,?,?,?)',
+    [id, username, passwordHash, nowIso()]
   );
 
-  res.status(201).json({ id, email });
+  res.status(201).json({ id, username });
 }));
 
 // ---------- 로그인 ----------
 router.post('/login', ah(async (req, res) => {
-  const { email, password } = req.body;
-  if (!email || !password) return res.status(400).json({ error: 'missing_fields' });
+  const { username, password } = req.body;
+  if (!username || !password) return res.status(400).json({ error: 'missing_fields' });
 
-  const [rows] = await pool.query('SELECT * FROM users WHERE email = ?', [email]);
+  const [rows] = await pool.query('SELECT * FROM users WHERE username = ?', [username]);
   const user = rows[0];
-  // 이메일이 없을 때와 비밀번호가 틀렸을 때를 구분하지 않음(계정 존재 여부 노출 방지)
+  // 아이디가 없을 때와 비밀번호가 틀렸을 때를 구분하지 않음(계정 존재 여부 노출 방지)
   if (!user) return res.status(401).json({ error: 'invalid_credentials' });
 
   const ok = await bcrypt.compare(password, user.password_hash);
@@ -90,7 +92,7 @@ router.post('/login', ah(async (req, res) => {
   );
 
   res.cookie(REFRESH_COOKIE_NAME, refreshToken, refreshCookieOptions());
-  res.json({ accessToken, user: { id: user.id, email: user.email } });
+  res.json({ accessToken, user: { id: user.id, username: user.username } });
 }));
 
 // ---------- 액세스 토큰 재발급 ----------
@@ -116,7 +118,7 @@ router.post('/refresh', ah(async (req, res) => {
   if (!user) return res.status(401).json({ error: 'user_not_found' });
 
   const accessToken = signAccessToken(user);
-  res.json({ accessToken, user: { id: user.id, email: user.email } });
+  res.json({ accessToken, user: { id: user.id, username: user.username } });
 }));
 
 // ---------- 로그아웃 ----------
@@ -132,7 +134,7 @@ router.post('/logout', ah(async (req, res) => {
 // ---------- 내 정보 ----------
 router.get('/me', ah(async (req, res, next) => {
   requireAuth(req, res, () => {
-    res.json({ id: req.user.sub, email: req.user.email });
+    res.json({ id: req.user.sub, username: req.user.username });
   });
 }));
 

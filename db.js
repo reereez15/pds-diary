@@ -76,7 +76,31 @@ async function addUserIdColumnIfMissing(tableName) {
   }
 }
 
+// users 테이블이 예전에 email 컬럼으로 이미 만들어져 있었다면 username으로 이름만 바꿉니다.
+// (처음부터 새로 만드는 경우엔 CREATE TABLE에서 바로 username으로 생기므로 여긴 조용히 넘어갑니다)
+async function renameEmailColumnToUsernameIfNeeded() {
+  const [tableRows] = await pool.query(
+    `SELECT COUNT(*) AS cnt FROM information_schema.TABLES
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users'`
+  );
+  if (tableRows[0].cnt === 0) return; // users 테이블 자체가 아직 없으면 이 뒤 CREATE TABLE에서 새로 만들어짐
+
+  const [emailRows] = await pool.query(
+    `SELECT COUNT(*) AS cnt FROM information_schema.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND COLUMN_NAME = 'email'`
+  );
+  const [usernameRows] = await pool.query(
+    `SELECT COUNT(*) AS cnt FROM information_schema.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND COLUMN_NAME = 'username'`
+  );
+  if (emailRows[0].cnt > 0 && usernameRows[0].cnt === 0) {
+    await pool.query('ALTER TABLE users CHANGE COLUMN email username VARCHAR(50) UNIQUE NOT NULL');
+  }
+}
+
 async function initSchema() {
+  await renameEmailColumnToUsernameIfNeeded();
+
   // 과제 6 — 기존 테이블 (변경 없음)
   await pool.query(`
     CREATE TABLE IF NOT EXISTS plans (
@@ -149,7 +173,7 @@ async function initSchema() {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS users (
       id VARCHAR(36) PRIMARY KEY,
-      email VARCHAR(255) UNIQUE NOT NULL,
+      username VARCHAR(50) UNIQUE NOT NULL,
       password_hash VARCHAR(255) NOT NULL,
       created_at VARCHAR(30) NOT NULL
     ) ENGINE=InnoDB

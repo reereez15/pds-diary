@@ -72,8 +72,8 @@
     <p class="sub" id="subtitle">내 계획과 기록은 로그인 뒤에만 보입니다.</p>
 
     <form id="authForm">
-      <label>이메일</label>
-      <input type="email" id="email" required autocomplete="username">
+      <label>아이디</label>
+      <input type="text" id="username" required autocomplete="username" minlength="3" maxlength="50" pattern="[a-zA-Z0-9_.-]+">
       <label>비밀번호</label>
       <input type="password" id="password" required autocomplete="current-password" minlength="8">
       <button type="submit" id="submitBtn">로그인</button>
@@ -118,10 +118,11 @@ function applyMode(){
 applyMode();
 
 const ERROR_MESSAGES = {
-  missing_fields: '이메일과 비밀번호를 모두 입력해 주세요.',
+  missing_fields: '아이디와 비밀번호를 모두 입력해 주세요.',
+  invalid_username: '아이디는 3~50자의 영문/숫자/._- 조합이어야 합니다.',
   weak_password: '비밀번호는 8자 이상이어야 합니다.',
-  email_taken: '이미 가입된 이메일입니다.',
-  invalid_credentials: '이메일 또는 비밀번호가 올바르지 않습니다.',
+  username_taken: '이미 사용 중인 아이디입니다.',
+  invalid_credentials: '아이디 또는 비밀번호가 올바르지 않습니다.',
   server_error: '서버 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.',
 };
 
@@ -130,7 +131,7 @@ document.getElementById('authForm').addEventListener('submit', async (e) => {
   errorBox.style.display = 'none';
   submitBtn.disabled = true;
 
-  const email = document.getElementById('email').value.trim();
+  const username = document.getElementById('username').value.trim();
   const password = document.getElementById('password').value;
 
   try {
@@ -138,7 +139,7 @@ document.getElementById('authForm').addEventListener('submit', async (e) => {
       const r = await fetch(`${API}/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ username, password }),
       });
       if (!r.ok) {
         const body = await r.json().catch(() => ({}));
@@ -151,7 +152,7 @@ document.getElementById('authForm').addEventListener('submit', async (e) => {
       method: 'POST',
       credentials: 'include', // 리프레시 토큰 httpOnly 쿠키를 받기 위해 필요
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({ username, password }),
     });
     if (!loginRes.ok) {
       const body = await loginRes.json().catch(() => ({}));

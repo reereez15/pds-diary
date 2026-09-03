@@ -353,7 +353,7 @@ async function ensureLoggedInThenStart(){
   }
   const meRes = await authFetch(`${API}/auth/me`);
   const me = await meRes.json();
-  document.getElementById('who-am-i').textContent = `${me.email} 님으로 로그인됨`;
+  document.getElementById('who-am-i').textContent = `${me.username} 님으로 로그인됨`;
   document.getElementById('logout-btn').addEventListener('click', async () => {
     await fetch(`${API}/auth/logout`, { method:'POST', credentials:'include' });
     sessionStorage.removeItem('accessToken');
